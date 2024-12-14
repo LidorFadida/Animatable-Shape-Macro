@@ -15,6 +15,9 @@ public struct AnimatableMacro: MemberMacro {
     private struct Constants {
         static let vectorName: String = "_AnimatableDataVector"
         static let shapeProtocol: String = "Shape"
+        static let cgFloatTrimmedDescription: String = "CGFloat"
+        static let doubleTrimmedDescription: String = "Double"
+        static let animatableData: String = "animatableData"
         static let animatableIgnoredAnnotation: String = "@AnimatableIgnored"
         
         ///Error messages
@@ -24,6 +27,7 @@ public struct AnimatableMacro: MemberMacro {
             static let somethingWentWrong: String = "Something went wrong"
             static let unexpectedPropertiesCount: String = "Unexpected property count encountered"
             static let redundantAnnotation: String = "The @Animatable macro has no effect here because no animatable properties have been found. Consider adding animatable properties to make the macro meaningful"
+            static let animatableDataRedeclaration: String = "@Animatable automatically generates the `animatableData` property. Please remove your custom `animatableData` declaration to avoid conflicts."
         }
     }
     
@@ -65,6 +69,12 @@ public struct AnimatableMacro: MemberMacro {
                 !animatableDeclConfiguration.attributesContains(trimmedDescription: Constants.animatableIgnoredAnnotation)
             }
         
+        try animatableProperties.forEach { animatableProperty in
+            guard animatableProperty.name != Constants.animatableData else {
+                throw MacroExpansionError(message: Constants.ErrorMessage.animatableDataRedeclaration)
+            }
+        }
+        
         guard !animatableProperties.isEmpty else {
             context.diagnose(
                 Diagnostic(
@@ -82,22 +92,18 @@ public struct AnimatableMacro: MemberMacro {
                 throw MacroExpansionError(message: Constants.ErrorMessage.somethingWentWrong)
             }
             
-            let animatableDataDecl = DeclSyntax(
-            """
-            var animatableData: \(animatableDeclConfiguration.typeSyntax) {
-                get { self.\(raw: animatableDeclConfiguration.name) }
-                set { self.\(raw: animatableDeclConfiguration.name) = newValue }
-            }
-            """
+            let animatableData = try makeAnimatableData(
+                type: animatableDeclConfiguration.typeSyntax.trimmedDescription,
+                properties: [animatableDeclConfiguration.name]
             )
             
-            return [animatableDataDecl]
+            return [animatableData]
         case 2...:
             ///VectorArithmetic DeclSyntax
             let vectorArithmetic = try makeVectorArithmetic(animatableDecl: animatableProperties)
             ///animatableData DeclSyntax
             let properties = animatableProperties.map { $0.name }
-            let animatableData = makeAnimatableData(vectorName: Constants.vectorName, properties: properties)
+            let animatableData = try makeAnimatableData(type: Constants.vectorName, properties: properties)
             
             return [vectorArithmetic, animatableData]
         default:
@@ -120,11 +126,11 @@ extension AnimatableMacro {
                 .attributes
                 .map { attribute in attribute.trimmedDescription }
                 .reduce(into: []) { partialResult, element in partialResult.append(element) }
-                .contains("@AnimatableIgnored")
+                .contains(Constants.animatableIgnoredAnnotation)
             
-            guard let typeTrimmedDescription = propertyTypeSyntax.as(IdentifierTypeSyntax.self)?.name.trimmedDescription else { throw MacroExpansionError(message: "Something went wrong") }
+            guard let typeTrimmedDescription = propertyTypeSyntax.as(IdentifierTypeSyntax.self)?.name.trimmedDescription else { throw MacroExpansionError(message: Constants.ErrorMessage.somethingWentWrong) }
 
-            if typeTrimmedDescription != "CGFloat" && typeTrimmedDescription != "Double" {
+            if typeTrimmedDescription != Constants.cgFloatTrimmedDescription && typeTrimmedDescription != Constants.doubleTrimmedDescription {
                 if !shouldIgnoreProperty {
                     throw MacroExpansionError(
                         message: """
@@ -174,17 +180,31 @@ extension AnimatableMacro {
         return animatableBuilder.buildDeclSyntaxExpression()
     }
     
-    private static func makeAnimatableData(vectorName: String, properties: [String]) -> DeclSyntax {
-        let get = "\(Constants.vectorName)(\(properties.map { "\($0): self.\($0)" }.joined(separator: ", ")))"
-        let set = properties.map { "self.\($0) = newValue.\($0)" }.joined(separator: "\n")
-        let animatableDataDecl = DeclSyntax(
+    private static func makeAnimatableData(type: String, properties: [String]) throws -> DeclSyntax {
+        let get: String
+        let set: String
+
+        switch properties.count {
+        case 1:
+            guard let property = properties.first else {
+                throw MacroExpansionError(message: Constants.ErrorMessage.somethingWentWrong)
+            }
+            get = "self.\(property)"
+            set = "self.\(property) = newValue"
+        case 2...:
+            get = "\(type)(\(properties.map { "\($0): self.\($0)" }.joined(separator: ", ")))"
+            set = properties.map { "self.\($0) = newValue.\($0)" }.joined(separator: "\n")
+        default:
+            throw MacroExpansionError(message: Constants.ErrorMessage.somethingWentWrong)
+        }
+
+        return DeclSyntax(
         """
-        var animatableData: \(raw: Constants.vectorName) {
+        var animatableData: \(raw: type) {
             get { \(raw: get) }
             set { \(raw: set) }
         }
         """
         )
-        return animatableDataDecl
     }
 }
