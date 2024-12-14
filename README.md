@@ -17,7 +17,7 @@ This package uses Swift Macros to automatically generate and manage properties, 
 Add **Animatable-Shape-Macro** to your `Package.swift` dependencies:
 
 ```swift
-.package(url: "https://github.com/yourusername/Animatable-Shape-Macro.git", from: "1.0.0")
+.package(url: "https://github.com/lidorfadida/Animatable-Shape-Macro.git", from: "1.0.0")
 ```
 
 ## Usage 
@@ -33,7 +33,7 @@ import AnimatableMacro
 ```swift
   @AnimatableMacro
   struct MyCustomShape: Shape {
-      var animatableData: CGFloat
+      var animatedProperty: CGFloat
     
       func path(in rect: CGRect) -> Path {
         // Define your shape's path based on animatableData
@@ -50,13 +50,13 @@ If there are certain properties you don’t want to be included in the generated
 ```swift
   @AnimatableMacro
   struct MyAdvancedShape: Shape {
-      var animatableData: CGFloat
+      var animatedProperty: CGFloat
     
       @AnimatableIgnored
       var nonAnimatableInfo: String
 
       func path(in rect: CGRect) -> Path {
-        // animatableData will animate, nonAnimatableInfo won't
+        // animatedProperty will animate, nonAnimatableInfo won't
       }
   }
 ```
