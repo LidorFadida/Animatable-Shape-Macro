@@ -90,6 +90,39 @@ struct AnimatableMacroTestCases {
         }
     }
     
+    @Test("Error 'VectorArithmetic' Invalid Redeclaration")
+    func testAnimatableMacroErrorAnimatableDataPropertyRedeclaration() throws {
+        assertMacro(["Animatable" : AnimatableMacro.self]) {
+            """
+            @Animatable
+            struct InvalidRedeclaration: Shape {
+                var float: CGFloat
+                func path(in rect: CGRect) -> Path { Path() }
+                    
+                var animatableData: CGFloat {
+                    get { return myValue }
+                    set { myValue = newValue }
+                }
+            } 
+            """
+        } diagnostics: {
+            """
+            @Animatable
+            ┬──────────
+            ╰─ 🛑 @Animatable automatically generates the `animatableData` property. Please remove your custom `animatableData` declaration to avoid conflicts.
+            struct InvalidRedeclaration: Shape {
+                var float: CGFloat
+                func path(in rect: CGRect) -> Path { Path() }
+                    
+                var animatableData: CGFloat {
+                    get { return myValue }
+                    set { myValue = newValue }
+                }
+            } 
+            """
+        }
+    }
+    
     //MARK: - Warnings
     @Test("Warning Redundant Usage")
     func testAnimatableMacroWarningForStructWithoutStoredProperties() throws {
